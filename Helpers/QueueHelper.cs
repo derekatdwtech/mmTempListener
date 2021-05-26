@@ -11,7 +11,10 @@ namespace meatmonitor.helpers
         ILogger _log;
         public QueueHelper(string connectionString, string queueName, ILogger log)
         {
-            _client = new QueueClient(connectionString, queueName);
+            QueueClientOptions options = new QueueClientOptions() {
+                MessageEncoding = QueueMessageEncoding.Base64
+            };
+            _client = new QueueClient(connectionString, queueName, options);
             _log = log;
             try
             {
