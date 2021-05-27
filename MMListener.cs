@@ -26,7 +26,7 @@ namespace meatmonitor.listener
                 //Store message in table
                 StoreMessage(log, myQueueItem);
 
-                if (message.temperature.c > temp)
+                if (message.temperature.c > (temp + 3 ))
                 {
                     log.LogInformation($"Temp in C is {message.temperature.c}. This is greater than your set threshold of {temp}! Posting Alert Message.");
                     PostAlertMessage(myQueueItem, log);
