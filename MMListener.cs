@@ -17,16 +17,16 @@ namespace meatmonitor.listener
 
             if (myQueueItem != null)
             {
-                // Get Confirguration from API
-                int temp = GetTemperatureLimit(log);
-
                 // Deserialize message into usable object
                 MessageResult message = JsonConvert.DeserializeObject<MessageResult>(myQueueItem);
+
+                // Get Confirguration from API
+                int temp = GetTemperatureLimit(log, message.name);
 
                 //Store message in table
                 StoreMessage(log, myQueueItem);
 
-                if (message.temperature.c > (temp + 3 ))
+                if (message.temperature.c > (temp + 3))
                 {
                     log.LogInformation($"Temp in C is {message.temperature.c}. This is greater than your set threshold of {temp}! Posting Alert Message.");
                     PostAlertMessage(myQueueItem, log);
@@ -43,8 +43,6 @@ namespace meatmonitor.listener
         private void StoreMessage(ILogger log, string body)
         {
             RestHelper _rest = new RestHelper(Environment.GetEnvironmentVariable("meatMonitorApi"), log);
-            //_rest.Post("temperature", body);
-
             try
             {
                 var result = _rest.Post("temperature", body);
@@ -66,13 +64,13 @@ namespace meatmonitor.listener
             }
         }
 
-        private int GetTemperatureLimit(ILogger log)
+        private int GetTemperatureLimit(ILogger log, string probeId)
         {
             RestHelper _rest = new RestHelper(Environment.GetEnvironmentVariable("meatMonitorApi"), log);
 
             try
             {
-                var result = _rest.Get("probe/config/9d67375a-30af-4561-b895-75d96d14880d");
+                var result = _rest.Get($"probe/config/{probeId}");
                 int temperature = JsonConvert.DeserializeObject<ProbeConfig>(result.Content).tempThresholdInCelcius;
                 log.LogInformation($"Received probe configuration. Temperature limit is {temperature}");
                 return temperature;
