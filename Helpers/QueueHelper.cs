@@ -2,7 +2,7 @@ using System;
 using Azure.Storage.Queues;
 using Microsoft.Extensions.Logging;
 
-namespace meatmonitor.helpers
+namespace tempaast.helpers
 {
     public class QueueHelper
     {

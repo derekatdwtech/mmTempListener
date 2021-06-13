@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using RestSharp;
 
-namespace meatmonitor.helpers
+namespace tempaast.helpers
 {
     public class RestHelper
     {

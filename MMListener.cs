@@ -1,16 +1,18 @@
 using System;
 using System.Threading;
-using meatmonitor.helpers;
-using meatmonitor.models;
+using tempaast.helpers;
+using tempaast.models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using tempaastapi.helpers;
+using Microsoft.WindowsAzure.Storage.Table;
 
-namespace meatmonitor.listener
+namespace tempaast.listener
 {
     public class MMListener
     {
-        private int retryCount = 0;
+
         [FunctionName("MMListener")]
         public void Run([QueueTrigger("temperature", Connection = "meatmonitorqueue_STORAGE")] string myQueueItem, ILogger log)
         {
@@ -21,10 +23,10 @@ namespace meatmonitor.listener
                 MessageResult message = JsonConvert.DeserializeObject<MessageResult>(myQueueItem);
 
                 // Get Confirguration from API
-                int temp = GetTemperatureLimit(log, message.name);
+                int temp = GetTemperatureLimit(log, message.probe_id);
 
                 //Store message in table
-                StoreMessage(log, myQueueItem);
+                StoreMessage(log, message);
 
                 if (message.temperature.c > (temp + 3))
                 {
@@ -36,51 +38,37 @@ namespace meatmonitor.listener
             {
                 log.LogError("Message received was null. This should never happen");
             }
-            retryCount = 0;
+
 
         }
 
-        private void StoreMessage(ILogger log, string body)
+        private async void StoreMessage(ILogger log, MessageResult body)
         {
-            RestHelper _rest = new RestHelper(Environment.GetEnvironmentVariable("meatMonitorApi"), log);
-            try
+            var _client = new AzureTableStorage<TempTableEntity>(Environment.GetEnvironmentVariable("meatmonitorqueue_STORAGE"), Environment.GetEnvironmentVariable("temperatureTable"));
+            TempTableEntity entity = new TempTableEntity()
             {
-                var result = _rest.Post("temperature", body);
-                if (result.StatusCode == System.Net.HttpStatusCode.OK)
-                {
-                    log.LogInformation("Successfully Stored Temperature Reading");
-                }
-            }
-            catch (Exception e)
-            {
-                while (retryCount < 3)
-                {
-                    log.LogError("Failed to store message. Retrying in 5 seconds...");
-                    log.LogError($"{e}");
-                    Thread.Sleep(5000);
-                    retryCount++;
-                    StoreMessage(log, body);
-                }
-            }
+                PartitionKey = body.user_id,
+                RowKey = body.time,
+                probe_id = body.probe_id,
+                user_id = body.user_id,
+                temp_c = body.temperature.c.ToString(),
+                temp_f = body.temperature.f.ToString(),
+                time = body.time.ToString()
+            };
+
+            await _client.InsertOrUpdateAsync(entity);
+
         }
 
         private int GetTemperatureLimit(ILogger log, string probeId)
         {
-            RestHelper _rest = new RestHelper(Environment.GetEnvironmentVariable("meatMonitorApi"), log);
+            var _client = new AzureTableStorage<ProbeConfig>(Environment.GetEnvironmentVariable("meatmonitorqueue_STORAGE"), Environment.GetEnvironmentVariable("probeConfigTable"));
+            TableQuery<ProbeConfig> query = new TableQuery<ProbeConfig>().Where(
+                TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, probeId)
+            );
 
-            try
-            {
-                var result = _rest.Get($"probe/config/{probeId}");
-                int temperature = JsonConvert.DeserializeObject<ProbeConfig>(result.Content).tempThresholdInCelcius;
-                log.LogInformation($"Received probe configuration. Temperature limit is {temperature}");
-                return temperature;
-            }
-            catch (Exception e)
-            {
-                int defaultTemp = Convert.ToInt32(Environment.GetEnvironmentVariable("defaultAlertTemp"));
-                log.LogError($"Failed to get configuration from the server. Defaulting to {defaultTemp}. Error: {e.Message}");
-                return defaultTemp;
-            }
+            return _client.GetByQuery(query).Result.tempThresholdInCelcius;
+
         }
 
         private void PostAlertMessage(string message, ILogger log)

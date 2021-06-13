@@ -1,4 +1,4 @@
-# Meat Monitor Receiving Function
+# Tempaast Temperature Receiving Function
 
 ## Infrastructure Required
 * Azure Function (Consumption Plan)
